@@ -5,7 +5,12 @@ import { supabase, addInteraction, getInteractions } from '../../../lib/supabase
 import NavBar from '../../../components/NavBar';
 import Footer from '../../../components/Footer';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 
+// Dynamically import ReactQuill to avoid SSR issues
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+
+// Define the Post and Comment interfaces
 interface Post {
   id: number;
   title: string;
@@ -31,11 +36,10 @@ const BlogPost = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showPopup, setShowPopup] = useState<boolean>(false);
-
-  // State for like and dislike counts
   const [likeCount, setLikeCount] = useState<number>(0);
   const [dislikeCount, setDislikeCount] = useState<number>(0);
 
+  // Fetch post data, comments, and interactions
   useEffect(() => {
     if (id) {
       const fetchPost = async () => {
@@ -81,6 +85,7 @@ const BlogPost = () => {
     }
   }, [id]);
 
+  // Handle adding a comment
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -105,6 +110,7 @@ const BlogPost = () => {
       setSuccessMessage('Comment posted successfully!');
       setShowPopup(true);
 
+      // Add the new comment to the current state to display it instantly
       setComments([
         ...comments,
         {
@@ -124,6 +130,7 @@ const BlogPost = () => {
     setIsSubmitting(false);
   };
 
+  // Handle liking a post
   const handleLike = async () => {
     const { data, error } = await addInteraction(Number(id), 'like');
     if (error) {
@@ -133,6 +140,7 @@ const BlogPost = () => {
     }
   };
 
+  // Handle disliking a post
   const handleDislike = async () => {
     const { data, error } = await addInteraction(Number(id), 'dislike');
     if (error) {
@@ -156,8 +164,11 @@ const BlogPost = () => {
           </div>
           <h1 className="text-5xl font-bold mb-4 text-gray-900">{post.title}</h1>
           <p className="text-gray-600 mb-4">{new Date(post.created_at).toLocaleDateString()}</p>
-          <div className="prose prose-lg text-gray-800 leading-7 mb-8">{post.content}</div>
+          
+          {/* Render the post content as HTML */}
+          <div className="prose prose-lg text-gray-800 leading-7 mb-8" dangerouslySetInnerHTML={{ __html: post.content }}></div>
 
+          {/* Like and Dislike buttons */}
           <div className="flex items-center mb-8">
             <button
               onClick={handleLike}
@@ -173,6 +184,7 @@ const BlogPost = () => {
             </button>
           </div>
 
+          {/* Comments section */}
           <h2 className="text-3xl font-bold mb-4 text-gray-900">Comments</h2>
           {comments.map((comment) => (
             <div key={comment.id} className="bg-gray-100 p-4 rounded-lg mb-4 border border-gray-300">
@@ -181,6 +193,7 @@ const BlogPost = () => {
             </div>
           ))}
 
+          {/* Comment form */}
           <form onSubmit={handleAddComment} className="mt-4">
             {error && <p className="text-red-500 mb-4">{error}</p>}
             {successMessage && <p className="text-green-500 mb-4">{successMessage}</p>}
