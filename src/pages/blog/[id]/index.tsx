@@ -1,73 +1,7 @@
-// // src/pages/blog/[id]/index.tsx
-// import { useRouter } from 'next/router';
-// import { useEffect, useState } from 'react';
-// import { supabase } from '../../../lib/supabase';
-// import NavBar from '../../../components/NavBar';
-// import Footer from '../../../components/Footer';
-// import Image from 'next/image';
 
-// interface Post {
-//   id: number;
-//   title: string;
-//   content: string;
-//   image_url: string;
-//   created_at: string;
-// }
-
-// const BlogPost = () => {
-//   const router = useRouter();
-//   const { id } = router.query;
-//   const [post, setPost] = useState<Post | null>(null);
-
-//   useEffect(() => {
-//     if (id) {
-//       const fetchPost = async () => {
-//         const { data, error } = await supabase
-//           .from('posts')
-//           .select('*')
-//           .eq('id', id)
-//           .single();
-
-//         if (error) {
-//           console.error(error);
-//         } else {
-//           setPost(data);
-//         }
-//       };
-
-//       fetchPost();
-//     }
-//   }, [id]);
-
-//   if (!post) {
-//     return <p>Loading...</p>;
-//   }
-
-//   return (
-//     <div className="min-h-screen bg-gray-100">
-//       <NavBar />
-//       <div className="container mx-auto p-4 sm:p-8 pt-20">
-//         <div className="bg-white p-4 sm:p-8 rounded-lg shadow-md">
-//           <div className="relative w-full h-60 sm:h-80 mb-4 sm:mb-8">
-//             <Image src={post.image_url} alt={post.title} layout="fill" objectFit="cover" className="rounded-md" />
-//           </div>
-//           <h1 className="text-3xl sm:text-5xl font-bold mb-2 sm:mb-4 text-gray-900">{post.title}</h1>
-//           <p className="text-gray-600 mb-4">{new Date(post.created_at).toLocaleDateString()}</p>
-//           <div className="prose prose-sm sm:prose-lg text-gray-800 leading-6 sm:leading-7">{post.content}</div>
-//         </div>
-//       </div>
-//       <Footer />
-//     </div>
-//   );
-// };
-
-// export default BlogPost;
-
-// src/pages/blog/[id]/index.tsx
-// src/pages/blog/[id]/index.tsx
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase, addInteraction, getInteractions } from '../../../lib/supabase';
 import NavBar from '../../../components/NavBar';
 import Footer from '../../../components/Footer';
 import Image from 'next/image';
@@ -96,7 +30,11 @@ const BlogPost = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [showPopup, setShowPopup] = useState<boolean>(false); // State for pop-up message
+  const [showPopup, setShowPopup] = useState<boolean>(false);
+
+  // State for like and dislike counts
+  const [likeCount, setLikeCount] = useState<number>(0);
+  const [dislikeCount, setDislikeCount] = useState<number>(0);
 
   useEffect(() => {
     if (id) {
@@ -118,7 +56,7 @@ const BlogPost = () => {
         const { data, error } = await supabase
           .from('comments')
           .select('*')
-          .eq('post_id', Number(id)); // Convert id to number
+          .eq('post_id', Number(id));
 
         if (error) {
           console.error(error);
@@ -127,8 +65,19 @@ const BlogPost = () => {
         }
       };
 
+      const fetchInteractions = async () => {
+        const { data, error } = await getInteractions(Number(id));
+        if (error) {
+          console.error(error);
+        } else if (data) {
+          setLikeCount(data.like_count);
+          setDislikeCount(data.dislike_count);
+        }
+      };
+
       fetchPost();
       fetchComments();
+      fetchInteractions();
     }
   }, [id]);
 
@@ -152,11 +101,10 @@ const BlogPost = () => {
     if (error) {
       setError(error.message);
     } else if (data) {
-      setNewComment(''); // Clear the new comment input
-      setSuccessMessage('Comment posted successfully!'); // Set success message
-      setShowPopup(true); // Show pop-up message
+      setNewComment('');
+      setSuccessMessage('Comment posted successfully!');
+      setShowPopup(true);
 
-      // Add the new comment to the current state to display it instantly
       setComments([
         ...comments,
         {
@@ -167,14 +115,31 @@ const BlogPost = () => {
         },
       ]);
 
-      // Automatically hide the success message after 3 seconds
       setTimeout(() => {
         setSuccessMessage(null);
-        setShowPopup(false); // Hide pop-up message after 3 seconds
+        setShowPopup(false);
       }, 3000);
     }
 
     setIsSubmitting(false);
+  };
+
+  const handleLike = async () => {
+    const { data, error } = await addInteraction(Number(id), 'like');
+    if (error) {
+      console.error(error);
+    } else {
+      setLikeCount(likeCount + 1);
+    }
+  };
+
+  const handleDislike = async () => {
+    const { data, error } = await addInteraction(Number(id), 'dislike');
+    if (error) {
+      console.error(error);
+    } else {
+      setDislikeCount(dislikeCount + 1);
+    }
   };
 
   if (!post) {
@@ -192,6 +157,21 @@ const BlogPost = () => {
           <h1 className="text-5xl font-bold mb-4 text-gray-900">{post.title}</h1>
           <p className="text-gray-600 mb-4">{new Date(post.created_at).toLocaleDateString()}</p>
           <div className="prose prose-lg text-gray-800 leading-7 mb-8">{post.content}</div>
+
+          <div className="flex items-center mb-8">
+            <button
+              onClick={handleLike}
+              className="mr-4 bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 transition duration-300"
+            >
+              Like ({likeCount})
+            </button>
+            <button
+              onClick={handleDislike}
+              className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition duration-300"
+            >
+              Dislike ({dislikeCount})
+            </button>
+          </div>
 
           <h2 className="text-3xl font-bold mb-4 text-gray-900">Comments</h2>
           {comments.map((comment) => (
